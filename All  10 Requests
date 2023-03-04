@@ -1,0 +1,148 @@
+# Codebasics-SQL-challenge
+A collection of my SQL files
+
+Request 1
+SELECT market as Markets
+FROM gdb023.dim_customer
+where customer="Atliq Exclusive"
+and region = "APAC"
+group by market
+order by market asc;
+
+Request 2
+With Cte as 
+(select
+sum(case when fiscal_year = 2020 then 1 else 0 end)
+ as unique_products_2020,
+sum(case when fiscal_year = 2021 then 1 else 0 end) 
+as unique_products_2021
+from fact_gross_price)
+select unique_products_2020,unique_products_2021,
+round((unique_products_2021-unique_products_2020)/
+unique_products_2020 * 100 ,2)
+as percentage_chg
+from cte;
+
+Request 3
+
+select segment, count(product) 
+as product_count
+from dim_product
+group by segment
+order by product_count desc;
+
+Request 4
+
+With Cte as 
+(select
+segment,
+count(distinct case when fiscal_year = 2020 then p.product_code end) as product_count_2020,
+count(distinct case when fiscal_year = 2021 then p.product_code end) as product_count_2021
+from dim_product p
+join fact_gross_price g
+on g.product_code = p.product_code
+group by segment)
+select segment,product_count_2020,product_count_2021,
+(product_count_2021-product_count_2020) as difference
+from cte
+order by product_count_2021 desc;
+
+
+Request 5
+
+select
+p.product_code,
+p.product,
+m.manufacturing_cost
+from dim_product p
+join fact_manufacturing_cost m
+on p.product_code = m.product_code
+where m.manufacturing_cost in 
+((select max(manufacturing_cost)
+from fact_manufacturing_cost),
+(select min(manufacturing_cost)
+ from fact_manufacturing_cost));
+ 
+ Request 6
+ 
+ select
+c.customer_code,
+c.customer,
+pr.pre_invoice_discount_pct as
+ average_discount_percentage
+from dim_customer c
+join fact_pre_invoice_deductions pr
+on c.customer_code = pr.customer_code
+where pre_invoice_discount_pct >
+(select round(avg(pre_invoice_discount_pct),2)
+from fact_pre_invoice_deductions) and
+fiscal_year = 2021 and market = "India"
+order by pre_invoice_discount_pct desc
+limit 5;
+
+Request 7
+
+SELECT monthname(m.date) as Month,
+year(m.date) as Year,
+round(sum(g.gross_price * m.sold_quantity /1000000),2)
+as Gross_sales_in_Millions
+FROM fact_sales_monthly m
+join fact_gross_price g
+on m.product_code = g.product_code
+join dim_customer c
+on m.Customer_code = c.customer_code
+where customer = "Atliq Exclusive"
+group by m.date
+order by year;
+
+Request 8
+
+select 
+case when month(date) in (9,10,11) then "Q1"
+     when month(date) in (12,1,2) then "Q2"
+     when month(date) in (3,4,5) then "Q3"
+     else "Q4" end as Quarter,
+sum(sold_quantity) as total_quantity
+from fact_sales_monthly
+where fiscal_year = '2020'
+group by 1
+order by 2 desc;
+
+Request 9
+
+With CTE as 
+(SELECT channel,
+round(sum(g.gross_price * m.sold_quantity) /1000000,2) as Gross_sales_in_Millions
+ FROM fact_sales_monthly m
+ join fact_gross_price g
+ on m.product_code = g.product_code
+ join dim_customer c
+ on m.Customer_code = c.customer_code
+ where m.fiscal_year = 2021
+ group by channel)
+ select channel, Gross_sales_in_millions,
+ round((gross_sales_in_millions/(select sum(gross_sales_in_millions)
+ from CTE) * 100),2) as percentage 
+ from CTE
+ group by channel
+ order by gross_sales_in_millions desc;
+ 
+ Request 10
+ 
+ with sold_qty as (select p.division,p.product_code,p.product,
+sum(sold_quantity) as total_qty from dim_product p
+join fact_sales_monthly s 
+on p.product_code=s.product_code
+where s.fiscal_year=2021
+group by 1,2,3),
+rankr as (
+select *,
+dense_rank()over(partition by division order by total_qty desc) as rank_order from sold_qty)
+select
+  division,product_code,product,total_qty,rank_order 
+  from rankr
+  where rank_order<=3
+  order by  division ;
+ 
+ 
+ 
